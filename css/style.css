@@ -1,0 +1,202 @@
+/* =========================================
+   1. BASE Y RESET
+   ========================================= */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Vital para juegos 3D */
+    background-color: #000;
+    font-family: 'Georgia', serif;
+}
+
+canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* =========================================
+   2. OVERLAYS (Inicio y Pausa)
+   ========================================= */
+#overlay, #pause-overlay {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#overlay {
+    background: radial-gradient(circle, rgba(26,26,26,0.7) 0%, rgba(0,0,0,0.95) 100%);
+}
+
+#pause-overlay {
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 200;
+}
+
+/* =========================================
+   3. MENÚS Y CONTENEDORES
+   ========================================= */
+#menu, #pause-menu {
+    text-align: center;
+    color: #e0c097;
+    border: 6px double #5c4033;
+    padding: 2rem;
+    background: #1a1a1a;
+    box-shadow: 0 0 30px #000, inset 0 0 50px #5c4033;
+    max-width: 500px;
+    width: 100%;
+    border-radius: 4px;
+}
+
+#menu h1 {
+    font-size: clamp(1.5rem, 8vw, 3rem);
+    margin-bottom: 0.5rem;
+    color: #e0c097;
+    text-shadow: 2px 2px 4px #000;
+}
+
+.version-text {
+    color: #ffaa00;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+    display: block;
+}
+
+.controls {
+    margin-top: 20px;
+    line-height: 1.6;
+    color: #a38b6d;
+}
+
+/* =========================================
+   4. BOTONES
+   ========================================= */
+#start-button, #resume-button {
+    background: #5c4033;
+    color: #e0c097;
+    border: 2px solid #e0c097;
+    padding: 15px 40px;
+    font-size: clamp(1rem, 4vw, 1.3rem);
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    min-width: 200px;
+    margin-top: 10px;
+}
+
+#start-button:hover, #resume-button:hover {
+    background: #e0c097;
+    color: #111;
+    transform: scale(1.05);
+}
+
+/* =========================================
+   5. GUI / HUD (Interfaz de Juego)
+   ========================================= */
+#gui-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    display: none; /* Se activa desde JS al iniciar */
+}
+
+.stat-box {
+    background: rgba(30, 20, 10, 0.85);
+    color: #e0c097;
+    padding: 8px 15px;
+    margin-bottom: 8px;
+    border-left: 4px solid #5c4033;
+    font-family: 'Courier New', monospace;
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    border-radius: 0 5px 5px 0;
+    box-shadow: 3px 3px 10px rgba(0,0,0,0.5);
+    text-transform: uppercase;
+    min-width: 150px;
+}
+
+#p-hp {
+    color: #ff4444;
+    font-weight: bold;
+}
+
+/* Marca de agua de versión */
+.version-watermark {
+    position: fixed;
+    bottom: 10px;
+    right: 15px;
+    color: rgba(224, 192, 151, 0.3);
+    font-size: 11px;
+    font-family: sans-serif;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* =========================================
+   6. RESPONSIVIDAD (Media Queries)
+   ========================================= */
+@media (max-width: 480px) {
+    #menu, #pause-menu {
+        padding: 1.5rem;
+        border-width: 4px;
+    }
+    
+    #gui-container {
+        top: 10px;
+        left: 10px;
+    }
+
+    .stat-box {
+        padding: 5px 10px;
+    }
+}
+/* Alerta de vida baja */
+.hp-low {
+    animation: pulseRed 0.5s infinite alternate;
+}
+
+@keyframes pulseRed {
+    from { color: #ff4444; text-shadow: 0 0 0px red; }
+    to { color: #ffffff; text-shadow: 0 0 10px red; }
+}
+#damage-vignette {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* Degradado radial: transparente al centro, rojo en bordes */
+    background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(150,0,0,0.7) 100%);
+    pointer-events: none; /* Para que no bloquee los clics */
+    z-index: 50;         /* Por encima del juego, debajo de los menús */
+    opacity: 0;          /* Invisible por defecto */
+    transition: opacity 0.3s ease;
+}
+
+/* Clase para el flash de golpe */
+.vignette-flash {
+    opacity: 1 !important;
+}
+
+/* Clase para estado crítico (vida baja) */
+.vignette-critical {
+    opacity: 0.6;
+    animation: pulseVignette 1.5s infinite alternate;
+}
+
+@keyframes pulseVignette {
+    from { opacity: 0.3; }
+    to { opacity: 0.8; }
+}

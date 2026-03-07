@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Start-Fantasy | RPG 3D</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="overlay">
+        <div id="menu">
+            <h1>START-FANTASY</h1>
+            <span class="version-text">Build v0.4.8</span>
+            <div class="controls">
+                WASD: Mover | CLICK: Atacar<br>
+                Mouse para mover la camara<br>
+                ESC: Pausa | ESPACIO: Saltar
+            </div>
+            <button id="start-button">ENTRAR AL REINO</button>
+        </div>
+    </div>
+
+    <div id="pause-overlay" style="display: none;">
+        <div id="pause-menu">
+            <h2>JUEGO EN PAUSA</h2>
+            <p>La batalla aguarda...</p>
+            <button id="resume-button">CONTINUAR</button>
+        </div>
+    </div>
+
+    <div id="death-overlay" style="display: none;">
+        <div id="death-menu">
+            <h1>HAS CAÍDO</h1>
+            <p>Tu alma vagará por la oscuridad eternamente.</p>
+            <button id="retry-button">REINTENTAR</button>
+        </div>
+    </div>
+
+    <div id="gui-container">
+        <div id="damage-vignette"></div>
+        <div class="stat-box">JUGADOR: <span id="p-name">PALADÍN</span></div>
+        <div class="stat-box">HP: <span id="p-hp">100</span></div>
+        <div class="stat-box">NIVEL: <span id="p-lvl">1</span></div>
+        <div class="version-watermark">Start-Fantasy Build v0.4.7</div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.150.1",
+            "three/examples/jsm/loaders/GLTFLoader.js": "https://esm.sh/three@0.150.1/examples/jsm/loaders/GLTFLoader.js"
+        }
+    }
+    </script>
+
+    <script type="module" src="src/main.js?v=14"></script>
+</body>
+</html>
