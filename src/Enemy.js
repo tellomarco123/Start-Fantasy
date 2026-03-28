@@ -2,103 +2,150 @@ import * as THREE from 'https://esm.sh/three@0.150.1';
 
 export class Enemy {
     constructor(scene, x, z, hp = 50) {
+        if (!scene) {
+            console.error("Error: No se pasó la escena al enemigo");
+            return;
+        }
         this.scene = scene;
         this.hp = hp;
         this.maxHp = hp;
         this.isDead = false;
-        this.isStunned = false; // Flag para el aturdimiento
+        this.isStunned = false;
+        this.isAlerted = false;
 
-        // Cuerpo del enemigo
-        const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
-        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.set(x, 1, z);
-        this.scene.add(this.mesh);
-        
-        this.position = this.mesh.position;
+        // --- EL PUENTE (Fix para main.js:131) ---
+        // Esto permite que e.position funcione igual que e.mesh.position
+        this.position = new THREE.Vector3(x, 1, z);
 
-        // --- BARRA DE VIDA ---
-        const barGeometry = new THREE.PlaneGeometry(1.5, 0.2);
-        const barMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        this.healthBarBg = new THREE.Mesh(barGeometry, barMaterial);
-        this.healthBarBg.position.set(0, 1.5, 0); 
-        this.mesh.add(this.healthBarBg);
+        // Variables de merodeo
+        this.wanderTimer = Math.random() * 100;
+        this.wanderDirection = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+        this.isWaiting = false;
 
-        const healthGeometry = new THREE.PlaneGeometry(1.5, 0.2);
-        const healthMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        this.healthBarVisible = new THREE.Mesh(healthGeometry, healthMaterial);
-        this.healthBarVisible.position.z = 0.01; 
-        this.healthBarBg.add(this.healthBarVisible);
+        // --- CUERPO ---
+        try {
+            const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            this.mesh = new THREE.Mesh(geometry, material);
+            this.mesh.position.copy(this.position); // Usamos la misma referencia
+            this.position = this.mesh.position; // Vinculamos para que si uno se mueve, el otro también
+            this.scene.add(this.mesh);
+
+            // Guía visual frontal
+            const dotGeo = new THREE.SphereGeometry(0.1, 8, 8);
+            const dotMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            const frontDot = new THREE.Mesh(dotGeo, dotMat);
+            frontDot.position.set(0, 0.5, 0.6); 
+            this.mesh.add(frontDot); 
+
+            // Barra de vida
+            this.healthGroup = new THREE.Group();
+            this.scene.add(this.healthGroup);
+            const barGeo = new THREE.PlaneGeometry(1.5, 0.2);
+            this.healthBarBg = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            this.healthBarVisible = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+            this.healthBarVisible.position.z = 0.01;
+            this.healthGroup.add(this.healthBarBg);
+            this.healthBarBg.add(this.healthBarVisible);
+        } catch (e) {
+            console.error("Error al crear el enemigo:", e);
+        }
     }
 
-    takeDamage(amount) {
-        if (this.isDead) return;
+    takeDamage(amount, attackerPosition = null) {
+        if (this.isDead || !this.mesh) return;
 
-        this.hp -= amount;
-        this.isStunned = true; // Activa el aturdimiento
-
-        // Actualizar barra de vida
-        const porcentaje = Math.max(0, this.hp / this.maxHp);
-        this.healthBarVisible.scale.x = porcentaje;
-        this.healthBarVisible.position.x = -(1 - porcentaje) * (1.5 / 2);
-
-        if (porcentaje < 0.3) {
-            this.healthBarVisible.material.color.setHex(0xff0000);
+        // 1. Calcular Daño Crítico
+        if (attackerPosition) {
+            const enemyForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+            const dirFromAttacker = new THREE.Vector3().subVectors(this.mesh.position, attackerPosition).normalize();
+            if (enemyForward.dot(dirFromAttacker) > 0.5) {
+                amount *= 2;
+                console.log("¡GOLPE CRÍTICO!");
+            }
         }
 
-        // Feedback visual: Se pone blanco al recibir golpe
-        this.mesh.material.color.setHex(0xffffff);
-        this.mesh.material.emissive.setHex(0x444444);
+        // 2. Aplicar Daño y Estados
+        this.hp -= amount;
+        this.isStunned = true; // Se congela momentáneamente por el impacto
+        this.isAlerted = true; // ¡Te detecta!
+        this.isWaiting = false; // Deja de "esperar" si estaba merodeando
 
-        // Recuperación del aturdimiento tras 600ms
+        // 3. Empuje (Knockback)
+        if (attackerPosition) {
+            const dir = new THREE.Vector3().subVectors(this.mesh.position, attackerPosition).normalize();
+            this.mesh.position.x += dir.x * 0.8;
+            this.mesh.position.z += dir.z * 0.8;
+        }
+
+        // 4. Feedback Visual (Blanco)
+        this.mesh.material.color.setHex(0xffffff);
+
+        // 5. El "Descongelador" (Arreglado)
+        // Usamos una arrow function para asegurarnos de que 'this' sea el enemigo
         setTimeout(() => {
-            if (!this.isDead) {
-                this.isStunned = false;
-                this.mesh.material.color.setHex(0xff0000); // Vuelve a rojo
-                this.mesh.material.emissive.setHex(0x000000);
+            if (this && !this.isDead && this.mesh) {
+                this.isStunned = false; // <--- Esto es lo que los descongela
+                this.mesh.material.color.setHex(0xff0000); // Vuelve al rojo
             }
-        }, 1200);
+        }, 150); // 150ms es suficiente para el efecto de impacto
+
+        // 6. Actualizar UI
+        const porcentaje = Math.max(0, this.hp / this.maxHp);
+        if (this.healthBarVisible) {
+            this.healthBarVisible.scale.x = porcentaje;
+            this.healthBarVisible.position.x = -(1 - porcentaje) * 0.75;
+            if (porcentaje < 0.3) this.healthBarVisible.material.color.setHex(0xff0000);
+        }
 
         if (this.hp <= 0) this.die();
     }
+    
+    update(camera, player) {
+        if (this.isDead || !this.mesh || !camera || !player || !player.mesh) return;
 
-    die() {
-        this.isDead = true;
-        this.isStunned = false;
-        this.scene.remove(this.healthBarBg);
-        this.mesh.rotation.x = Math.PI / 2; 
-        this.mesh.material.color.setHex(0x333333);
-        this.mesh.position.y = 0.2;
-        
-        // Desaparece después de 5 segundos
-        setTimeout(() => this.scene.remove(this.mesh), 5000);
+        try {
+            const enemyPos = this.mesh.position;
+            const playerPos = player.mesh.position;
+            const dist = enemyPos.distanceTo(playerPos);
+
+            if (!this.isAlerted) {
+                // Merodeo (Estilo Zombie distraído)
+                this.wanderTimer--;
+                if (this.wanderTimer <= 0) {
+                    this.isWaiting = !this.isWaiting;
+                    this.wanderTimer = Math.random() * 100 + 50;
+                    this.wanderDirection.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+                }
+                if (!this.isWaiting) {
+                    const lookTarget = new THREE.Vector3().addVectors(enemyPos, this.wanderDirection);
+                    this.mesh.lookAt(lookTarget);
+                    this.mesh.translateZ(0.03); 
+                }
+                if (dist < 15) this.isAlerted = true; // Radio de alerta
+            } else if (!this.isStunned) {
+                // Persecución (Zombies de CoD)
+                this.mesh.lookAt(new THREE.Vector3(playerPos.x, enemyPos.y, playerPos.z));
+                if (dist > 1.8) this.mesh.translateZ(0.08);
+            }
+
+            // Actualizar UI
+            if (this.healthGroup) {
+                this.healthGroup.position.set(enemyPos.x, enemyPos.y + 1.8, enemyPos.z);
+                this.healthGroup.lookAt(camera.position);
+            }
+        } catch (err) {}
     }
 
-    update(camera, player) {
+    die() {
         if (this.isDead) return;
-        
-        // 1. Orientar barra de vida hacia la cámara
-        if (camera) {
-            this.healthBarBg.lookAt(camera.position);
-        }
-
-        // 2. IA de Persecución (Solo si NO está aturdido)
-        if (player && !this.isStunned) {
-            const dist = this.mesh.position.distanceTo(player.mesh.position);
-            const rangoDeteccion = 15; 
-            const distanciaAtaque = 2.0; 
-            const velocidad = 0.05;
-
-            if (dist < rangoDeteccion && dist > distanciaAtaque) {
-                const dirX = player.mesh.position.x - this.mesh.position.x;
-                const dirZ = player.mesh.position.z - this.mesh.position.z;
-                const magnitud = Math.sqrt(dirX * dirX + dirZ * dirZ);
-                
-                this.mesh.position.x += (dirX / magnitud) * velocidad;
-                this.mesh.position.z += (dirZ / magnitud) * velocidad;
-
-                this.mesh.rotation.y = Math.atan2(dirX, dirZ);
-            }
-        }
+        this.isDead = true;
+        try {
+            if (this.healthGroup) this.scene.remove(this.healthGroup);
+            this.mesh.rotation.x = Math.PI / 2;
+            this.mesh.position.y = 0.1;
+            this.mesh.material.color.setHex(0x333333); // Color de cadáver
+            setTimeout(() => this.scene.remove(this.mesh), 5000);
+        } catch (e) {}
     }
 }

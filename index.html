@@ -8,41 +8,50 @@
 </head>
 <body>
 
-    <div id="overlay">
-        <div id="menu">
+    <div id="overlay" class="menu-overlay">
+        <div class="menu-box">
             <h1>START-FANTASY</h1>
-            <span class="version-text">Build v0.4.8</span>
+            <span class="version-text">Build v0.5.2</span>
             <div class="controls">
-                WASD: Mover | CLICK: Atacar<br>
-                Mouse para mover la camara<br>
-                ESC: Pausa | ESPACIO: Saltar
+                WASD: Mover | SHIFT: Correr<br>
+                CLICK: Atacar | Q: Especial<br>
+                MOUSE: Cámara | ESC: Pausa
             </div>
-            <button id="start-button">ENTRAR AL REINO</button>
+            <button id="start-button" class="menu-button">ENTRAR AL REINO</button>
         </div>
     </div>
 
-    <div id="pause-overlay" style="display: none;">
-        <div id="pause-menu">
+    <div id="pause-overlay" class="menu-overlay" style="display: none;">
+        <div class="menu-box">
             <h2>JUEGO EN PAUSA</h2>
             <p>La batalla aguarda...</p>
-            <button id="resume-button">CONTINUAR</button>
+            <button id="resume-button" class="menu-button">CONTINUAR</button>
         </div>
     </div>
 
-    <div id="death-overlay" style="display: none;">
-        <div id="death-menu">
-            <h1>HAS CAÍDO</h1>
-            <p>Tu alma vagará por la oscuridad eternamente.</p>
-            <button id="retry-button">REINTENTAR</button>
+    <div id="death-overlay" class="menu-overlay" style="display: none;">
+        <div class="menu-box">
+            <h1 class="death-title">HAS CAÍDO</h1>
+            <p>Tu alma vagará por la oscuridad...</p>
+            <div id="death-stats">
+                <p>Oleada: <span id="final-wave">1</span></p>
+            </div>
+            <button id="retry-button" class="menu-button">REINTENTAR</button>
         </div>
     </div>
 
-    <div id="gui-container">
+    <div id="gui-container" style="display: none;">
         <div id="damage-vignette"></div>
-        <div class="stat-box">JUGADOR: <span id="p-name">PALADÍN</span></div>
+        
         <div class="stat-box">HP: <span id="p-hp">100</span></div>
-        <div class="stat-box">NIVEL: <span id="p-lvl">1</span></div>
-        <div class="version-watermark">Start-Fantasy Build v0.4.7</div>
+        
+        <div class="stat-box" style="margin-top: 10px;">
+            <div style="width: 150px; height: 8px; background: rgba(0,0,0,0.5); border: 1px solid #e0c097; margin-top: 5px; overflow: hidden;">
+                <div id="stamina-bar" style="width: 100%; height: 100%; background: #00ffcc; transition: width 0.1s;"></div>
+            </div>
+        </div>
+
+        <div class="stat-box">Oleada: <span id="p-lvl">1</span></div>
     </div>
 
     <script type="importmap">
@@ -53,7 +62,6 @@
         }
     }
     </script>
-
-    <script type="module" src="src/main.js?v=14"></script>
+    <script type="module" src="src/main.js?v=32"></script>
 </body>
 </html>

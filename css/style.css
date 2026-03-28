@@ -6,7 +6,7 @@ body, html {
     padding: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden; /* Vital para juegos 3D */
+    overflow: hidden;
     background-color: #000;
     font-family: 'Georgia', serif;
 }
@@ -18,9 +18,10 @@ canvas {
 }
 
 /* =========================================
-   2. OVERLAYS (Inicio y Pausa)
+   2. OVERLAYS (ESTRUCTURA UNIFICADA)
    ========================================= */
-#overlay, #pause-overlay {
+/* Esta clase se aplica a #overlay, #pause-overlay y #death-overlay */
+.menu-overlay {
     position: fixed;
     top: 0; 
     left: 0; 
@@ -32,25 +33,27 @@ canvas {
     z-index: 100;
     padding: 20px;
     box-sizing: border-box;
+    backdrop-filter: blur(4px); /* Suaviza el fondo al estar en menú */
 }
 
 #overlay {
     background: radial-gradient(circle, rgba(26,26,26,0.7) 0%, rgba(0,0,0,0.95) 100%);
 }
 
-#pause-overlay {
-    background: rgba(0, 0, 0, 0.8);
+#pause-overlay, #death-overlay {
+    background: rgba(0, 0, 0, 0.85);
     z-index: 200;
 }
 
 /* =========================================
-   3. MENÚS Y CONTENEDORES
+   3. CONTENEDORES DE MENÚ (ESTILO UNIFICADO)
    ========================================= */
-#menu, #pause-menu {
+/* Aplicamos el diseño a los tres contenedores internos */
+.menu-box {
     text-align: center;
     color: #e0c097;
     border: 6px double #5c4033;
-    padding: 2rem;
+    padding: 2.5rem;
     background: #1a1a1a;
     box-shadow: 0 0 30px #000, inset 0 0 50px #5c4033;
     max-width: 500px;
@@ -58,11 +61,18 @@ canvas {
     border-radius: 4px;
 }
 
-#menu h1 {
-    font-size: clamp(1.5rem, 8vw, 3rem);
+.menu-box h1, .menu-box h2 {
+    font-size: clamp(1.8rem, 8vw, 3rem);
     margin-bottom: 0.5rem;
     color: #e0c097;
     text-shadow: 2px 2px 4px #000;
+    letter-spacing: 2px;
+}
+
+/* Color especial para el título de muerte */
+.death-title {
+    color: #ff4444 !important;
+    text-shadow: 0 0 15px rgba(255, 0, 0, 0.5) !important;
 }
 
 .version-text {
@@ -74,43 +84,44 @@ canvas {
 }
 
 .controls {
-    margin-top: 20px;
+    margin: 20px 0;
     line-height: 1.6;
     color: #a38b6d;
+    font-size: 0.95rem;
 }
 
 /* =========================================
-   4. BOTONES
+   4. BOTONES UNIFICADOS
    ========================================= */
-#start-button, #resume-button {
+.menu-button {
     background: #5c4033;
     color: #e0c097;
     border: 2px solid #e0c097;
     padding: 15px 40px;
-    font-size: clamp(1rem, 4vw, 1.3rem);
+    font-size: clamp(1rem, 4vw, 1.2rem);
     cursor: pointer;
     font-family: 'Georgia', serif;
     text-transform: uppercase;
     transition: all 0.3s ease;
-    min-width: 200px;
-    margin-top: 10px;
+    min-width: 220px;
+    margin-top: 15px;
 }
 
-#start-button:hover, #resume-button:hover {
+.menu-button:hover {
     background: #e0c097;
     color: #111;
     transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(224, 192, 151, 0.4);
 }
 
 /* =========================================
-   5. GUI / HUD (Interfaz de Juego)
+   5. GUI / HUD
    ========================================= */
 #gui-container {
     position: absolute;
     top: 20px;
     left: 20px;
     z-index: 10;
-    display: none; /* Se activa desde JS al iniciar */
 }
 
 .stat-box {
@@ -124,73 +135,33 @@ canvas {
     border-radius: 0 5px 5px 0;
     box-shadow: 3px 3px 10px rgba(0,0,0,0.5);
     text-transform: uppercase;
-    min-width: 150px;
+    min-width: 160px;
 }
 
-#p-hp {
-    color: #ff4444;
-    font-weight: bold;
-}
-
-/* Marca de agua de versión */
-.version-watermark {
-    position: fixed;
-    bottom: 10px;
-    right: 15px;
-    color: rgba(224, 192, 151, 0.3);
-    font-size: 11px;
-    font-family: sans-serif;
-    pointer-events: none;
-    z-index: 5;
-}
-
-/* =========================================
-   6. RESPONSIVIDAD (Media Queries)
-   ========================================= */
-@media (max-width: 480px) {
-    #menu, #pause-menu {
-        padding: 1.5rem;
-        border-width: 4px;
-    }
-    
-    #gui-container {
-        top: 10px;
-        left: 10px;
-    }
-
-    .stat-box {
-        padding: 5px 10px;
-    }
-}
-/* Alerta de vida baja */
-.hp-low {
-    animation: pulseRed 0.5s infinite alternate;
-}
+/* Alertas de vida */
+#p-hp { color: #ff4444; font-weight: bold; }
+.hp-low { animation: pulseRed 0.5s infinite alternate; }
 
 @keyframes pulseRed {
     from { color: #ff4444; text-shadow: 0 0 0px red; }
     to { color: #ffffff; text-shadow: 0 0 10px red; }
 }
+
+/* =========================================
+   6. EFECTOS DE DAÑO (VIGNETTE)
+   ========================================= */
 #damage-vignette {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    /* Degradado radial: transparente al centro, rojo en bordes */
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
     background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(150,0,0,0.7) 100%);
-    pointer-events: none; /* Para que no bloquee los clics */
-    z-index: 50;         /* Por encima del juego, debajo de los menús */
-    opacity: 0;          /* Invisible por defecto */
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
     transition: opacity 0.3s ease;
 }
 
-/* Clase para el flash de golpe */
-.vignette-flash {
-    opacity: 1 !important;
-}
-
-/* Clase para estado crítico (vida baja) */
+.vignette-flash { opacity: 1 !important; }
 .vignette-critical {
     opacity: 0.6;
     animation: pulseVignette 1.5s infinite alternate;

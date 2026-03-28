@@ -5,16 +5,19 @@ export class Player {
     constructor(scene, radioLimite) {
         this.scene = scene;
         this.radioLimite = radioLimite;
-        
         this.mesh = new THREE.Group();
         this.scene.add(this.mesh);
 
         this.mixer = null;
         this.acciones = {}; 
+        this.isDead = false; // Estado de muerte
         
         this.isAttacking = false;
-        this.attackRange = 3.5; 
+        this.enemigosGolpeados = []; 
+        this.attackRange = 2.5; 
         this.strength = 20;
+        this.stamina = 100;
+        this.maxStamina = 100;
 
         this.obstaculos = [];
         this.radioJugador = 0.8; 
@@ -23,137 +26,249 @@ export class Player {
 
         this.cargarModelo();
         
-        window.addEventListener('keydown', (e) => this.keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keydown', (e) => {
+            if (this.isDead) return;
+            this.keys[e.key.toLowerCase()] = true;
+            if (e.key.toLowerCase() === 'q') this.specialAttack();
+        });
         window.addEventListener('keyup', (e) => this.keys[e.key.toLowerCase()] = false);
         window.addEventListener('mousedown', (e) => {
-            if (e.button === 0) this.attack();
+            if (e.button === 0 && !this.isDead) this.attack();
         });
     }
 
     cargarModelo() {
         const loader = new GLTFLoader();
-        
-        // --- CARGA 1: MODELO BASE ---
-        loader.load('./assets/Paladin J Nordstrom@Sword And Shield Run.glb', (gltf) => {
+        loader.load('./assets/Character Animated.glb', (gltf) => {
             const modelo = gltf.scene;
             modelo.rotation.y = Math.PI; 
+            modelo.scale.set(0.7, 0.7, 0.7);
             this.mesh.add(modelo);
+            
             this.mixer = new THREE.AnimationMixer(modelo);
 
-            gltf.animations.forEach((clip) => {
-                this.acciones['run'] = this.mixer.clipAction(clip);
-            });
+            // --- ASIGNACIÓN POR ÍNDICES CONFIRMADOS POR CONSOLA ---
+            this.acciones['idle'] = this.mixer.clipAction(gltf.animations[11]);
+            this.acciones['run'] = this.mixer.clipAction(gltf.animations[9]);
+            this.acciones['walk'] = this.mixer.clipAction(gltf.animations[10]);
+            this.acciones['attack'] = this.mixer.clipAction(gltf.animations[5]); // Punch
+            this.acciones['hit'] = this.mixer.clipAction(gltf.animations[6]);    // RecieveHit
+            this.acciones['death'] = this.mixer.clipAction(gltf.animations[3]);  // Death
 
-            if (this.acciones['run']) {
-                this.acciones['run'].play();
-                this.acciones['run'].paused = true;
-            }
-            console.log("✅ Paladín invocado");
-        });
+            // Configuración de loops
+            this.acciones['attack'].setLoop(THREE.LoopOnce);
+            this.acciones['attack'].clampWhenFinished = true;
+            
+            this.acciones['hit'].setLoop(THREE.LoopOnce);
+            
+            this.acciones['death'].setLoop(THREE.LoopOnce);
+            this.acciones['death'].clampWhenFinished = true;
 
-        // --- CARGA 2: ATAQUE CON BLOQUEO DE MEMORIA ---
-        loader.load('./assets/Stable Sword Outward Slash.glb', (animGltf) => {
-            const esperarMixer = setInterval(() => {
-                if (this.mixer) {
-                    const clipAtaque = animGltf.animations[0]; 
-                    const actionAtaque = this.mixer.clipAction(clipAtaque);
-                    
-                    // Reset total para evitar el bug tras el reinicio
-                    actionAtaque.stop();
-                    actionAtaque.reset();
-                    actionAtaque.setLoop(THREE.LoopOnce);
-                    actionAtaque.clampWhenFinished = true;
-                    
-                    // Bloqueo visual total inicial
-                    actionAtaque.enabled = false; 
-                    actionAtaque.weight = 0; 
-                    
-                    this.acciones['attack'] = actionAtaque; 
-                    console.log("⚔️ Sistema de combate listo");
-                    clearInterval(esperarMixer);
-                }
-            }, 100);
+            // Iniciar Idle
+            this.acciones['idle'].play();
         });
     }
 
-    attack() {
-    if (this.isAttacking || !this.acciones['attack']) return;
+    // --- NUEVA FUNCIÓN: RECIBIR DAÑO ---
+    takeDamage(cantidad, origenEnemigo = null) {
+        if (this.isDead) return;
 
-    this.isAttacking = true;
-    
-    // 1. Apagamos el movimiento suavemente
-    if (this.acciones['run']) this.acciones['run'].fadeOut(0.2);
-    
-    const animAtaque = this.acciones['attack'];
-    animAtaque.enabled = true;
-    animAtaque.weight = 1; 
-    animAtaque.reset().play();
-
-    // Impacto
-    setTimeout(() => { this.checkHit(); }, 600); 
-
-    // 2. EL FIX: Retorno fluido
-    setTimeout(() => {
-        // Empezamos a traer de vuelta la animación de correr ANTES de quitar el ataque
-        if (this.acciones['run']) {
-            this.acciones['run'].enabled = true;
-            this.acciones['run'].reset().fadeIn(0.3).play(); 
-            this.acciones['run'].weight = 1;
+        // Reproducir animación de golpe (índice 6)
+        if (this.acciones['hit']) {
+            this.acciones['hit'].reset().fadeIn(0.1).play();
         }
 
-        // Desvanecemos el ataque mientras el otro ya está entrando
-        animAtaque.fadeOut(0.3);
+        // Pequeño retroceso físico (Knockback)
+        if (origenEnemigo) {
+            const dir = new THREE.Vector3().subVectors(this.mesh.position, origenEnemigo).normalize();
+            this.mesh.position.addScaledVector(dir, 0.5);
+            this.mesh.position.y = 0; // Evitar que se hunda
+        }
+    }
+
+    attack() {
+        if (this.isAttacking || this.isDead || !this.acciones['attack']) return;
+        this.isAttacking = true;
+        this.enemigosGolpeados = []; 
         
+        const animAtaque = this.acciones['attack'];
+        animAtaque.reset().fadeIn(0.1).play();
+
+        setTimeout(() => this.checkHit(), 400); 
+
         setTimeout(() => {
+            animAtaque.fadeOut(0.3);
             this.isAttacking = false;
-            // Solo desactivamos el ataque cuando el otro ya tiene el control total
-            animAtaque.enabled = false;
-            animAtaque.weight = 0;
-        }, 300);
-    }, 1000); // Ajusta este tiempo si el tajo termina muy pronto
-}
-    checkHit() {
-        if (!window.enemigos) return; 
-        window.enemigos.forEach(enemy => {
-            if (enemy.isDead) return;
-            const dist = this.mesh.position.distanceTo(enemy.position);
-            if (dist < this.attackRange) enemy.takeDamage(this.strength);
+        }, 800);
+    }
+
+    die() {
+    if (this.isDead) return; 
+    this.isDead = true;
+
+    // 1. DETENER TODO DE FORMA AGRESIVA
+    if (this.mixer) {
+        // Obtenemos todas las acciones activas y las apagamos una por una
+        Object.values(this.acciones).forEach(accion => {
+            accion.stop();
+            accion.enabled = false;
+            accion.setEffectiveWeight(0); // Forzamos peso cero
         });
+    }
+
+    // 2. EJECUTAR MUERTE (Índice 3)
+    const deathAction = this.acciones['death']; 
+
+    if (deathAction) {
+        deathAction.enabled = true;
+        deathAction.setEffectiveWeight(1); // Muerte tiene todo el control
+        deathAction.setEffectiveTimeScale(1);
+        deathAction.reset();
+        deathAction.setLoop(THREE.LoopOnce); 
+        deathAction.clampWhenFinished = true;
+        deathAction.play(); 
+    }
+}
+
+    // ... (specialAttack, checkHit, crearParticulasImpacto y setObstaculos se mantienen igual) ...
+    specialAttack() {
+        if (this.isAttacking || this.isDead || this.stamina < 40) return;
+        this.stamina -= 40;
+        this.isAttacking = true;
+        
+        const playerPos = new THREE.Vector3();
+        this.mesh.getWorldPosition(playerPos);
+
+        if (window.enemigos) {
+            window.enemigos.forEach(enemy => {
+                if (enemy.isDead || !enemy.mesh) return;
+                const enemyPos = new THREE.Vector3();
+                enemy.mesh.getWorldPosition(enemyPos);
+                const dist = playerPos.distanceTo(enemyPos);
+                if (dist < 6.5) {
+                    enemy.takeDamage(this.strength * 2.5, playerPos);
+                    this.crearParticulasImpacto(enemyPos);
+                }
+            });
+        }
+        setTimeout(() => { this.isAttacking = false; }, 800);
+    }
+
+    checkHit() {
+        const listaEnemigos = window.enemigos || [];
+        const playerPos = new THREE.Vector3();
+        this.mesh.getWorldPosition(playerPos);
+        const playerForward = new THREE.Vector3(0, 0, -1);
+        playerForward.applyQuaternion(this.mesh.quaternion);
+        playerForward.normalize();
+
+        listaEnemigos.forEach(enemy => {
+            if (enemy.isDead || !enemy.mesh) return;
+            if (this.enemigosGolpeados.includes(enemy)) return;
+            const enemyPos = new THREE.Vector3();
+            enemy.mesh.getWorldPosition(enemyPos);
+            const dirToEnemy = new THREE.Vector3().subVectors(enemyPos, playerPos).normalize();
+            const dot = playerForward.dot(dirToEnemy);
+            const dist = playerPos.distanceTo(enemyPos);
+            if (dist < this.attackRange && dot > 0.5) {
+                enemy.takeDamage(this.strength, playerPos);
+                this.crearParticulasImpacto(enemyPos);
+                this.enemigosGolpeados.push(enemy);
+            }
+        });
+    }
+
+    crearParticulasImpacto(pos) {
+        for (let i = 0; i < 8; i++) {
+            const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const p = new THREE.Mesh(geo, mat);
+            p.position.copy(pos);
+            p.position.y += 1;
+            this.scene.add(p);
+            
+            const v = { 
+                x: (Math.random() - 0.5) * 0.3, 
+                y: Math.random() * 0.3, 
+                z: (Math.random() - 0.5) * 0.3 
+            };
+            
+            let vida = 1.0;
+            const anim = () => {
+                if (vida <= 0) { this.scene.remove(p); return; }
+                p.position.x += v.x; p.position.y += v.y; p.position.z += v.z;
+                vida -= 0.04;
+                p.scale.set(vida, vida, vida);
+                requestAnimationFrame(anim);
+            };
+            anim();
+        }
     }
 
     setObstaculos(lista) { this.obstaculos = lista; }
 
     update(deltaTime) {
-        if (!this.mixer) return; 
+    if (!this.mixer) return;
+    if (this.isDead) {
         this.mixer.update(deltaTime);
+        return; 
+    }
 
-        if (this.isAttacking) return;
+    this.mixer.update(deltaTime);
+    // ... (aquí sigue el resto de tu código de stamina, teclas, etc.)
 
-        const speed = 0.25; 
-        let moveX = 0, moveZ = 0, estaMoviendose = false;
+        let isMoving = this.keys['w'] || this.keys['s'] || this.keys['a'] || this.keys['d'];
+        let wantsToRun = this.keys['shift'] && this.stamina > 5;
+        let speed = isMoving ? (wantsToRun ? 0.45 : 0.20) : 0;
 
-        if (this.keys['w']) { moveX -= Math.sin(this.rotation) * speed; moveZ -= Math.cos(this.rotation) * speed; estaMoviendose = true; }
-        if (this.keys['s']) { moveX += Math.sin(this.rotation) * speed; moveZ += Math.cos(this.rotation) * speed; estaMoviendose = true; }
-        if (this.keys['a']) { moveX -= Math.sin(this.rotation + Math.PI/2) * speed; moveZ -= Math.cos(this.rotation + Math.PI/2) * speed; estaMoviendose = true; }
-        if (this.keys['d']) { moveX += Math.sin(this.rotation + Math.PI/2) * speed; moveZ += Math.cos(this.rotation + Math.PI/2) * speed; estaMoviendose = true; }
-
-        if (this.acciones['run']) this.acciones['run'].paused = !estaMoviendose;
-
-        const proximaX = this.mesh.position.x + moveX;
-        const proximaZ = this.mesh.position.z + moveZ;
-        let puedeMoverse = true;
-
-        for (let obs of this.obstaculos) {
-            const dx = proximaX - obs.x, dz = proximaZ - obs.z;
-            const distancia = Math.sqrt(dx * dx + dz * dz);
-            if (distancia < (this.radioJugador + obs.radio)) { puedeMoverse = false; break; }
+        // Stamina
+        if (isMoving && wantsToRun) {
+            this.stamina = Math.max(0, this.stamina - 0.8);
+        } else {
+            this.stamina = Math.min(this.maxStamina, this.stamina + 0.6);
         }
 
-        if (Math.sqrt(proximaX**2 + proximaZ**2) > this.radioLimite - 2) puedeMoverse = false;
+        const bar = document.getElementById('stamina-bar');
+        if (bar) bar.style.width = `${this.stamina}%`;
 
-        if (puedeMoverse && estaMoviendose) {
-            this.mesh.position.x = proximaX;
-            this.mesh.position.z = proximaZ;
+        // --- LÓGICA DE ANIMACIÓN (CORREGIDA) ---
+if (this.acciones['run'] && this.acciones['idle']) {
+    if (isMoving && !this.isAttacking) {
+        // Si se está moviendo y NO está atacando
+        if (this.acciones['idle'].isRunning()) this.acciones['idle'].stop();
+        
+        this.acciones['run'].enabled = true;
+        this.acciones['run'].setEffectiveWeight(1);
+        this.acciones['run'].play();
+        
+        const animationScale = (wantsToRun) ? 1.5 : 0.8;
+        this.acciones['run'].setEffectiveTimeScale(animationScale);
+    } else {
+        // SI NO SE MUEVE O ESTÁ ATACANDO: Paramos el correr de golpe
+        this.acciones['run'].stop(); 
+        this.acciones['idle'].reset().fadeIn(0.2).play();
+    }
+}
+
+        // Movimiento y Colisiones
+        if (isMoving) {
+            let moveX = 0, moveZ = 0;
+            if (this.keys['w']) { moveX -= Math.sin(this.rotation) * speed; moveZ -= Math.cos(this.rotation) * speed; }
+            if (this.keys['s']) { moveX += Math.sin(this.rotation) * speed; moveZ += Math.cos(this.rotation) * speed; }
+            if (this.keys['a']) { moveX -= Math.sin(this.rotation + Math.PI/2) * speed; moveZ -= Math.cos(this.rotation + Math.PI/2) * speed; }
+            if (this.keys['d']) { moveX += Math.sin(this.rotation + Math.PI/2) * speed; moveZ += Math.cos(this.rotation + Math.PI/2) * speed; }
+
+            const nextX = this.mesh.position.x + moveX;
+            const nextZ = this.mesh.position.z + moveZ;
+            let canMove = true;
+            for (let obs of this.obstaculos) {
+                const dist = Math.sqrt((nextX - obs.x)**2 + (nextZ - obs.z)**2);
+                if (dist < (this.radioJugador + obs.radio)) { canMove = false; break; }
+            }
+            if (canMove && Math.sqrt(nextX**2 + nextZ**2) < this.radioLimite - 2) {
+                this.mesh.position.x = nextX;
+                this.mesh.position.z = nextZ;
+            }
         }
         this.mesh.rotation.y = this.rotation;
     }
